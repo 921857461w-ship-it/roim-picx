@@ -69,6 +69,8 @@ request.interceptors.response.use(
 export const requestListImages = (data: ImgReq): Promise<ImgList> => request.post('/rest/list', data)
 export const requestUploadImages = (data: FormData): Promise<ImgItem[]> => request.post('/rest/upload', data)
 export const createFolder = (data: Folder): Promise<any> => request.post('/rest/folder', data)
+// 删除文件夹（含其中所有图片，同步清理数据库残留记录）
+export const requestDeleteFolder = (folder: string): Promise<{ folder: string, deletedImages: number }> => request.post('/rest/folder/delete', { folder })
 // checkToken 返回类型：布尔值（JWT验证）或对象（Token登录成功）
 export interface TokenLoginResult {
 	token: string

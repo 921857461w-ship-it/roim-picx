@@ -115,6 +115,12 @@
                         class="font-medium text-gray-700 dark:text-gray-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                         {{ it === '/' ? $t('manage.rootFolder') : String(it).replace("/", "") }}
                     </span>
+                    <button v-if="it !== '/'"
+                        class="ml-auto p-1.5 rounded-lg text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 opacity-0 group-hover:opacity-100 transition-all"
+                        :title="$t('manage.deleteFolder')"
+                        @click.stop="deleteFolder(String(it))">
+                        <font-awesome-icon :icon="faTrashAlt" class="text-sm" />
+                    </button>
                 </div>
             </div>
         </div>
@@ -255,7 +261,7 @@
 </template>
 
 <script setup lang="ts">
-import { requestListImages, requestDeleteImage, createFolder, requestRenameImage } from '../utils/request'
+import { requestListImages, requestDeleteImage, createFolder, requestRenameImage, requestDeleteFolder } from '../utils/request'
 import formatBytes from '../utils/format-bytes'
 import type { ImgItem, ImgReq, Folder } from '../utils/types'
 import { ElImageViewer } from 'element-plus'
@@ -507,6 +513,33 @@ const handleAddFolderConfirm = async () => {
         listImages()
     } catch (err) {
         console.error(err)
+    } finally {
+        loading.value = false
+    }
+}
+// 删除文件夹（含其中所有图片，同步清理数据库残留记录）
+const deleteFolder = async (folder: string) => {
+    try {
+        await ElMessageBox.confirm(t('manage.deleteFolderConfirm'), t('manage.deleteFolder'), {
+            confirmButtonText: t('common.delete'),
+            cancelButtonText: t('common.cancel'),
+            type: 'warning'
+        })
+    } catch {
+        return // 用户取消
+    }
+
+    loading.value = true
+    try {
+        const res = await requestDeleteFolder(folder)
+        ElMessage.success(t('manage.folderDeleted', { count: res.deletedImages }))
+        // 若当前正处于被删除的文件夹（或其子文件夹）内，退回根目录
+        if (delimiter.value !== '/' && String(delimiter.value).startsWith(folder)) {
+            delimiter.value = '/'
+        }
+        listImages()
+    } catch (e) {
+        console.error(e)
     } finally {
         loading.value = false
     }
