@@ -14,7 +14,7 @@
     <!-- Thumbnail -->
     <div
       class="relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-700">
-      <el-image class="w-full h-full object-cover" :src="src" fit="cover" hide-on-click-modal lazy
+      <el-image class="w-full h-full object-cover" :src="thumbSrc" fit="cover" hide-on-click-modal lazy
         :class="{ 'blur-md': isNsfw && !showNsfw }"
         @error="imageError = true" :preview-src-list="[src]">
         <template #placeholder>
@@ -124,6 +124,7 @@
 import { faTrashAlt, faLink, faImage, faEdit, faEye, faUser, faShareAlt, faFolderPlus, faTag, faEyeSlash, faCheck } from '@fortawesome/free-solid-svg-icons'
 import copy from 'copy-to-clipboard'
 import formatBytes from '../utils/format-bytes'
+import { thumbnailUrl } from '../utils/thumbnail'
 import { ElTooltip, ElPopconfirm, ElImage, ElMessage } from 'element-plus'
 import { ref, computed } from 'vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
@@ -143,6 +144,9 @@ const props = defineProps<{
 
 const emit = defineEmits(['delete', 'detail', 'rename', 'preview', 'share', 'addToAlbum', 'editTags', 'toggleSelect'])
 const imageError = ref(false)
+
+// 列表缩略图（64px 显示区）：边缘缩放 + WebP 自动协商，预览仍用原图
+const thumbSrc = computed(() => thumbnailUrl(props.src, { width: 160, height: 160, fit: 'cover' }))
 
 const isNsfw = computed(() => props.nsfw)
 const showNsfw = ref(false)

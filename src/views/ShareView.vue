@@ -52,7 +52,7 @@
             <!-- Image Display -->
             <div v-else-if="imageUrl" class="bg-white dark:bg-gray-800 rounded-3xl shadow-xl overflow-hidden">
                 <div class="relative">
-                    <img :src="imageUrl" class="w-full max-h-[70vh] object-contain bg-gray-100 dark:bg-gray-900"
+                    <img :src="displaySrc" class="w-full max-h-[70vh] object-contain bg-gray-100 dark:bg-gray-900"
                         @click="showPreview = true" />
                 </div>
 
@@ -88,9 +88,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
+import { thumbnailUrl } from '../utils/thumbnail'
 import { faSpinner, faLock, faUnlock, faEye, faDownload, faExclamationTriangle, faExclamationCircle, faArrowRight } from '@fortawesome/free-solid-svg-icons'
 import { ElImageViewer, ElMessage, ElCard } from 'element-plus'
 import { requestGetShareInfo, requestVerifyShare, type ShareDetail, type ShareImageResult } from '../utils/request'
@@ -113,6 +114,8 @@ const passwordError = ref('')
 const verifying = ref(false)
 
 const imageUrl = ref('')
+// 页面展示用限宽版本（边缘缩放 + WebP 协商），预览/下载仍用原图
+const displaySrc = computed(() => thumbnailUrl(imageUrl.value, { width: 1600 }))
 const imageName = ref('shared-image')
 const shareResult = ref<ShareImageResult | null>(null)
 const showPreview = ref(false)

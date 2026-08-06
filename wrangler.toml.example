@@ -21,6 +21,9 @@ GOOGLE_CLIENT_SECRET = "xxx"
 HF_TOKEN = "xxx"
 HF_REPO = "roimdev/picx"
 STORAGE_TYPE = "R2"
+# 可选：R2 公共桶域名（在 R2 控制台启用自定义域/公共访问 + Image Resizing 后填写）
+# 启用后图片可通过 /rest/img/{key}?width=200&height=200&fit=cover 在边缘实时缩放，并按 Accept 头自动转 WebP/AVIF
+# R2_PUBLIC_DOMAIN = "https://image.r2.dev"
 GITLAB_CLIENT_ID = "xxx"
 GITLAB_CLIENT_SECRET = "gloas-xx"
 VITE_GITLAB_CLIENT_ID = "xx"

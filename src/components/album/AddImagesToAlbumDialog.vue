@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage, ElImage, ElEmpty } from 'element-plus'
 import { faSearch, faCheckCircle, faFolder, faChevronRight } from '@fortawesome/free-solid-svg-icons'
 import { requestListImages, requestAddImagesToAlbum } from '../../utils/request'
+import { thumbnailUrl } from '../../utils/thumbnail'
 import type { ImgItem, ImgReq } from '../../utils/types'
 import BaseDialog from '../common/BaseDialog.vue'
 import BaseButton from '../common/BaseButton.vue'
@@ -211,7 +212,7 @@ const handleClearSelection = () => {
                     <div v-for="img in images" :key="img.key"
                         class="aspect-square relative rounded overflow-hidden cursor-pointer group"
                         @click="toggleSelect(img.key)">
-                        <el-image :src="img.url" fit="cover" class="w-full h-full" loading="lazy" />
+                        <el-image :src="thumbnailUrl(img.url, { width: 400, fit: 'cover' })" fit="cover" class="w-full h-full" loading="lazy" />
                         <!-- Selection Overlay -->
                         <div class="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors flex items-center justify-center"
                             :class="{ 'bg-indigo-500/30 ring-2 ring-indigo-500': selectedKeys.has(img.key) }">

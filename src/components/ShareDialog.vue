@@ -83,6 +83,7 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { faShare, faSpinner, faRedo, faTimes } from '@fortawesome/free-solid-svg-icons'
 import formatBytes from '../utils/format-bytes'
+import { thumbnailUrl } from '../utils/thumbnail'
 import copy from 'copy-to-clipboard'
 import { requestCreateShare, requestShareAlbum } from '../utils/request'
 import type { AlbumShareInfo } from '../utils/types'
@@ -134,7 +135,9 @@ const displayName = computed(() => {
 })
 
 const displayCover = computed(() => {
-    return props.type === 'image' ? props.imageUrl : props.coverImage // Album cover could be added if available, for now empty or default
+    const url = props.type === 'image' ? props.imageUrl : props.coverImage // Album cover could be added if available, for now empty or default
+    // 弹窗封面小图：边缘缩放 + WebP 自动协商
+    return thumbnailUrl(url, { width: 200, height: 200, fit: 'cover' })
 })
 
 const displaySubtext = computed(() => {

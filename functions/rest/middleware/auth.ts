@@ -24,6 +24,7 @@ export type Bindings = {
     HF_TOKEN?: string // Hugging Face Token
     HF_REPO?: string // Hugging Face Repository (username/dataset)
     STORAGE_TYPE?: 'R2' | 'HF' // Default storage type
+    R2_PUBLIC_DOMAIN?: string // R2 公共桶域名（如 https://image.r2.dev），启用 Image Resizing 后用于边缘缩放
 }
 
 export type Variables = {

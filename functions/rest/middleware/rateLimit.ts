@@ -21,6 +21,8 @@ const defaultConfig: RateLimitConfig = {
 export const rateLimitConfigs = {
     upload: { limit: 10, windowSeconds: 60, keyPrefix: 'rate:upload' },
     list: { limit: 30, windowSeconds: 60, keyPrefix: 'rate:list' },
+    // 图片动态缩放/转换接口：单 isolate 内存限流，防止滥用边缘转换资源
+    image: { limit: 120, windowSeconds: 60, keyPrefix: 'rate:image' },
     default: { limit: 60, windowSeconds: 60, keyPrefix: 'rate:default' }
 }
 
@@ -155,3 +157,8 @@ export const uploadRateLimit = rateLimit(rateLimitConfigs.upload)
  * Rate limiter for list endpoints
  */
 export const listRateLimit = rateLimit(rateLimitConfigs.list)
+
+/**
+ * Rate limiter for image transform (resize / format conversion) endpoints
+ */
+export const imageRateLimit = rateLimit(rateLimitConfigs.image)

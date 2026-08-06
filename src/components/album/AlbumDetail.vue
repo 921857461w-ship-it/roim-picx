@@ -14,6 +14,7 @@ import {
 import type { Album, AlbumImage } from '../../utils/types'
 import { useIntersectionObserver } from '@vueuse/core'
 import { ElImageViewer } from 'element-plus'
+import { thumbnailUrl } from '../../utils/thumbnail'
 import BaseInput from '../common/BaseInput.vue'
 import BaseButton from '../common/BaseButton.vue'
 import BaseDialog from '../common/BaseDialog.vue'
@@ -218,6 +219,9 @@ const toggleMode = () => {
     isBigMode.value = !isBigMode.value
 }
 
+// 缩略图：大图模式请求更宽尺寸；预览列表仍用原图
+const thumbOf = (url: string) => thumbnailUrl(url, { width: isBigMode.value ? 1600 : 800, fit: 'cover' })
+
 onMounted(() => {
     loadAlbum()
 })
@@ -309,7 +313,7 @@ onMounted(() => {
                         class="relative aspect-square rounded-xl overflow-hidden group cursor-pointer border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-all"
                         :class="{ 'ring-2 ring-indigo-500': selectedKeys.has(img.image_key) }"
                         @click="isSelectionMode ? toggleSelect(img.image_key) : handlePreview(index)">
-                        <el-image :src="img.image_url" fit="cover"
+                        <el-image :src="thumbOf(img.image_url)" fit="cover"
                             class="w-full h-full transition-transform duration-500 group-hover:scale-105"
                             loading="lazy" />
                         <div v-if="!isSelectionMode"

@@ -7,11 +7,16 @@ import {
     faFolder, faEllipsisVertical, faPen, faTrash, faShareNodes
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { computed } from 'vue'
+import { thumbnailUrl } from '../../utils/thumbnail'
 import type { Album } from '../../utils/types'
 
 const props = defineProps<{
     album: Album
 }>()
+
+// 相册封面缩略图：边缘缩放 + WebP 自动协商
+const thumbCover = computed(() => thumbnailUrl(props.album.cover_image, { width: 800, fit: 'cover' }))
 
 const emit = defineEmits<{
     (e: 'click'): void
@@ -29,7 +34,7 @@ const { t } = useI18n()
 
         <!-- Full Background Cover -->
         <div class="absolute inset-0">
-            <img v-if="album.cover_image" :src="album.cover_image"
+            <img v-if="album.cover_image" :src="thumbCover"
                 class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
             <div v-else
                 class="w-full h-full flex items-center justify-center text-gray-300 dark:text-gray-600 bg-gray-50 dark:bg-gray-800">

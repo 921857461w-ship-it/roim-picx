@@ -4,8 +4,12 @@ import { Ok, Fail, ImgItem, ImgList, ImgReq } from '../type'
 import type { User, DbImage } from '../type'
 import { parseRange } from '../utils'
 import { auth, type AppEnv } from '../middleware/auth'
-import { listRateLimit } from '../middleware/rateLimit'
+import { listRateLimit, imageRateLimit } from '../middleware/rateLimit'
 import { getProviderByType, getStorageProvider } from '../storage'
+import {
+    parseTransformOptions, hasTransformOptions, isTransformable, transformImage,
+    type ImageTransformOptions
+} from '../services/imageTransform'
 
 const imageRoutes = new Hono<AppEnv>()
 
@@ -412,12 +416,100 @@ imageRoutes.post('/delImage/:token', async (c) => {
 })
 
 // image detail - catch-all for image keys
-const RESERVED_PREFIXES = ['user', 'admin', 'github', 'share', 'folder', 'list', 'upload', 'rename', 'del', 'delInfo', 'delImage', 'checkToken']
+const RESERVED_PREFIXES = ['user', 'admin', 'github', 'share', 'folder', 'list', 'upload', 'rename', 'del', 'delInfo', 'delImage', 'checkToken', 'img']
 
 function isReservedPath(id: string): boolean {
     const firstSegment = id.split('/')[0]
     return RESERVED_PREFIXES.includes(firstSegment)
 }
+
+/**
+ * 检查图片是否过期
+ */
+function isImageExpired(img: DbImage): boolean {
+    if (!img.expires_at) return false
+    const expiresAt = new Date(img.expires_at).getTime()
+    return !isNaN(expiresAt) && Date.now() > expiresAt
+}
+
+/**
+ * 记录图片访问统计（异步，不阻塞响应）
+ */
+function recordImageStats(c: any, key: string): void {
+    c.executionCtx.waitUntil((async () => {
+        try {
+            const referer = c.req.header('referer') || null
+            const userAgent = c.req.header('user-agent') || null
+            const cf = (c.req.raw as any).cf
+            const country = cf?.country || null
+            const city = cf?.city || null
+
+            await c.env.DB.prepare(
+                `INSERT INTO image_stats (image_key, referer, user_agent, country, city) 
+                 VALUES (?, ?, ?, ?, ?)`
+            ).bind(key, referer, userAgent, country, city).run()
+
+            await c.env.DB.prepare(
+                'UPDATE images SET view_count = view_count + 1 WHERE key = ?'
+            ).bind(key).run()
+        } catch (e) {
+            console.error('Failed to record image stats:', e)
+        }
+    })())
+}
+
+/**
+ * 动态缩放 / WebP 转换接口（边缘处理，带速率限制）
+ * 用法：
+ *   GET /rest/img/{key}?width=200&height=200&fit=cover
+ *   请求头携带 Accept: image/webp 时自动转换为 WebP（format=auto 协商）
+ *   也可显式指定 format=webp|avif|jpeg|png 与 quality=1-100
+ * 转换不可用时自动回退返回原图。
+ */
+imageRoutes.get('/img/:id{.+}', imageRateLimit, async (c) => {
+    const id = c.req.param('id')
+
+    const opts = parseTransformOptions(new URL(c.req.url).searchParams)
+    if (!opts) {
+        return c.json(Fail('Invalid image transform params'), 400)
+    }
+
+    const img = await c.env.DB.prepare('SELECT * FROM images WHERE key = ?').bind(id).first<DbImage>()
+    if (!img) {
+        return c.json(Fail('Image not found in DB'), 404)
+    }
+    if (isImageExpired(img)) {
+        c.executionCtx.waitUntil(deleteImageFromDb(c, id))
+        return c.json(Fail('Image expired'), 404)
+    }
+
+    // GIF / SVG 不支持缩放转换，直接走原图逻辑
+    const transformable = isTransformable(img.mime_type) && hasTransformOptions(opts)
+    if (transformable) {
+        const result = await transformImage(c, id, opts)
+        if (result.transformed && result.body) {
+            recordImageStats(c, id)
+            const headers = new Headers()
+            headers.set('content-type', result.contentType || 'image/webp')
+            // 转换结果随尺寸/格式/协商头变化，需纳入缓存键
+            headers.set('Vary', 'Accept')
+            headers.set('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800')
+            return new Response(result.body, { headers, status: 200 })
+        }
+    }
+
+    // 回退：返回原图
+    const provider = getProviderByType(c, img.storage_type || 'R2')
+    const object = await provider.get(id)
+    if (object == null) {
+        return c.json(Fail('object not found in storage'), 404)
+    }
+    recordImageStats(c, id)
+    const headers = new Headers()
+    if (object.contentType) headers.set('content-type', object.contentType)
+    headers.set('Cache-Control', 'public, max-age=31536000, immutable')
+    return new Response(object.body, { headers, status: 200 })
+})
 
 imageRoutes.get("/:id{.+}", async (c) => {
     let id = c.req.param('id')
@@ -433,6 +525,21 @@ imageRoutes.get("/:id{.+}", async (c) => {
         return c.json(Fail("Image not found in DB"), 404)
     }
 
+    // 支持通过查询参数直接请求转换版本：/rest/{key}?width=200&height=200&fit=cover
+    const opts = parseTransformOptions(new URL(c.req.url).searchParams)
+    if (opts && hasTransformOptions(opts) && isTransformable(img.mime_type)) {
+        const result = await transformImage(c, id, opts)
+        if (result.transformed && result.body) {
+            recordImageStats(c, id)
+            const headers = new Headers()
+            headers.set('content-type', result.contentType || 'image/webp')
+            headers.set('Vary', 'Accept')
+            headers.set('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800')
+            return new Response(result.body, { headers, status: 200 })
+        }
+        // 转换失败则继续向下返回原图
+    }
+
     const provider = getProviderByType(c, img.storage_type || 'R2')
     const range = parseRange(c.req.header('range') || null)
 
@@ -442,35 +549,13 @@ imageRoutes.get("/:id{.+}", async (c) => {
     }
 
     // Check for expiration
-    if (img.expires_at) {
-        const expiresAt = new Date(img.expires_at).getTime()
-        if (!isNaN(expiresAt) && Date.now() > expiresAt) {
-            c.executionCtx.waitUntil(deleteImageFromDb(c, id))
-            return c.json(Fail("Image expired"), 404)
-        }
+    if (isImageExpired(img)) {
+        c.executionCtx.waitUntil(deleteImageFromDb(c, id))
+        return c.json(Fail("Image expired"), 404)
     }
 
     // 记录访问统计
-    c.executionCtx.waitUntil((async () => {
-        try {
-            const referer = c.req.header('referer') || null
-            const userAgent = c.req.header('user-agent') || null
-            const cf = (c.req.raw as any).cf
-            const country = cf?.country || null
-            const city = cf?.city || null
-
-            await c.env.DB.prepare(
-                `INSERT INTO image_stats (image_key, referer, user_agent, country, city) 
-                 VALUES (?, ?, ?, ?, ?)`
-            ).bind(id, referer, userAgent, country, city).run()
-
-            await c.env.DB.prepare(
-                'UPDATE images SET view_count = view_count + 1 WHERE key = ?'
-            ).bind(id).run()
-        } catch (e) {
-            console.error('Failed to record image stats:', e)
-        }
-    })())
+    recordImageStats(c, id)
 
     const headers = new Headers()
     if (object.contentType) headers.set('content-type', object.contentType)

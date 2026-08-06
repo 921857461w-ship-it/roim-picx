@@ -9,6 +9,7 @@ import {
 import { computed, ref } from 'vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import formatBytes from '../utils/format-bytes'
+import { thumbnailUrl } from '../utils/thumbnail'
 import type { ImgItem } from '../utils/types'
 
 const props = defineProps<{
@@ -19,6 +20,9 @@ const props = defineProps<{
 
 const isNsfw = computed(() => props.item.nsfw)
 const showNsfw = ref(false)
+
+// 网格卡片缩略图：边缘缩放 + WebP 自动协商，转换失败后端自动回退原图
+const thumbSrc = computed(() => thumbnailUrl(props.item.url, { width: 800, fit: 'cover' }))
 
 const toggleNsfw = (e: Event) => {
     e.stopPropagation()
@@ -62,7 +66,7 @@ const displayGetName = (key: string) => {
 
         <!-- Full Background Image -->
         <div class="absolute inset-0">
-            <el-image :src="item.url" fit="cover"
+            <el-image :src="thumbSrc" fit="cover"
                 class="w-full h-full transition-transform duration-700 group-hover:scale-105" 
                 :class="{ 'blur-xl': isNsfw && !showNsfw }"
                 loading="lazy">
