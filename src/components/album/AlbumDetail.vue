@@ -313,7 +313,7 @@ onMounted(() => {
                         class="relative aspect-square rounded-xl overflow-hidden group cursor-pointer border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-all"
                         :class="{ 'ring-2 ring-indigo-500': selectedKeys.has(img.image_key) }"
                         @click="isSelectionMode ? toggleSelect(img.image_key) : handlePreview(index)">
-                        <el-image :src="thumbOf(img.image_url)" fit="cover"
+                        <el-image :src="thumbOf(img.image_url)" :fallback-src="img.image_url" fit="cover"
                             class="w-full h-full transition-transform duration-500 group-hover:scale-105"
                             loading="lazy" />
                         <div v-if="!isSelectionMode"

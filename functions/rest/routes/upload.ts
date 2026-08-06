@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { Ok, Fail, Build, ImgItem } from '../type'
 import type { User } from '../type'
-import { checkFileType, getFileName } from '../utils'
+import { checkFileType, getFileName, rewriteImageOrigin } from '../utils'
 import { auth, type AppEnv } from '../middleware/auth'
 import { uploadRateLimit } from '../middleware/rateLimit'
 import { getStorageProvider, getProviderByType } from '../storage'
@@ -194,7 +194,7 @@ uploadRoutes.post('/upload', uploadRateLimit, auth, async (c) => {
             urls.push({
                 key: object.key,
                 size: finalSize,
-                url: storage.getPublicUrl(object.key),
+                url: rewriteImageOrigin(storage.getPublicUrl(object.key), c.req.url),
                 filename: file.name,
                 delToken: delToken,
                 storageType: storageType as 'R2' | 'HF',

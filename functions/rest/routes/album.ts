@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { Ok, Fail } from '../type'
 import { auth, type AppEnv } from '../middleware/auth'
+import { rewriteImageOrigin } from '../utils'
 
 const albumRoutes = new Hono<AppEnv>()
 
@@ -64,6 +65,7 @@ albumRoutes.get('/albums', auth, async (c) => {
 
             return {
                 ...album,
+                cover_image: rewriteImageOrigin(album.cover_image, c.req.url),
                 enableRandomImage: !!album.enable_random_image,
                 imageCount: countRes?.count || 0,
                 shareInfo: { ...share }
@@ -180,9 +182,13 @@ albumRoutes.get('/albums/:id', auth, async (c) => {
         return c.json(Ok({
             album: {
                 ...album,
+                cover_image: rewriteImageOrigin(album.cover_image, c.req.url),
                 enableRandomImage: !!album.enable_random_image
             },
-            images: images.results || [],
+            images: (images.results || []).map((img: any) => ({
+                ...img,
+                image_url: rewriteImageOrigin(img.image_url, c.req.url)
+            })),
             total: countResult?.count || 0
         }))
     } catch (e) {
@@ -210,7 +216,7 @@ albumRoutes.get('/albums/:id/random', async (c) => {
             return c.json(Fail('相册中没有图片'), 404)
         }
 
-        return c.json(Ok(randomImage.image_url))
+        return c.json(Ok(rewriteImageOrigin(randomImage.image_url, c.req.url)))
     } catch (e) {
         console.error('Get random album image error:', e)
         return c.json(Fail('获取随机图片失败'))
@@ -364,7 +370,7 @@ albumRoutes.post('/albums/:id/share', auth, async (c) => {
             ).run()
         }
 
-        const shareUrl = `${c.env.BASE_URL}/s/album/${shareId}`
+        const shareUrl = `${new URL(c.req.url).origin}/s/album/${shareId}`
 
         // Audit log
         c.executionCtx.waitUntil(
@@ -415,7 +421,7 @@ albumRoutes.get('/share/album/:token', async (c) => {
             id: share.id,
             albumName: share.album_name,
             description: share.album_description,
-            coverImage: share.album_cover,
+            coverImage: rewriteImageOrigin(share.album_cover, c.req.url),
             hasPassword: !!share.password_hash,
             ownerName: share.user_login, // Or use a display name if available?
             createdAt: share.created_at
@@ -464,7 +470,10 @@ albumRoutes.post('/share/album/:token/verify', async (c) => {
         ).bind(share.album_id).all()
 
         return c.json(Ok({
-            images: images.results
+            images: (images.results || []).map((img: any) => ({
+                ...img,
+                image_url: rewriteImageOrigin(img.image_url, c.req.url)
+            }))
         }))
     } catch (e) {
         console.error('Verify album share error:', e)

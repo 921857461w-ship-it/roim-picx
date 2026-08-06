@@ -53,6 +53,7 @@
             <div v-else-if="imageUrl" class="bg-white dark:bg-gray-800 rounded-3xl shadow-xl overflow-hidden">
                 <div class="relative">
                     <img :src="displaySrc" class="w-full max-h-[70vh] object-contain bg-gray-100 dark:bg-gray-900"
+                        @error="fallbackToOriginal($event, imageUrl)"
                         @click="showPreview = true" />
                 </div>
 
@@ -91,7 +92,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
-import { thumbnailUrl } from '../utils/thumbnail'
+import { thumbnailUrl, fallbackToOriginal } from '../utils/thumbnail'
 import { faSpinner, faLock, faUnlock, faEye, faDownload, faExclamationTriangle, faExclamationCircle, faArrowRight } from '@fortawesome/free-solid-svg-icons'
 import { ElImageViewer, ElMessage, ElCard } from 'element-plus'
 import { requestGetShareInfo, requestVerifyShare, type ShareDetail, type ShareImageResult } from '../utils/request'

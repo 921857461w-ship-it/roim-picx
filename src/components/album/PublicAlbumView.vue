@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElImage, ElEmpty, ElCard, ElImageViewer } from 'element-plus'
-import { thumbnailUrl } from '../../utils/thumbnail'
+import { thumbnailUrl, fallbackToOriginal } from '../../utils/thumbnail'
 import { faLock, faUnlock, faThLarge, faImage as faImageIcon, faExclamationCircle, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons'
 import { requestGetAlbumShareInfo, requestVerifyAlbumShare } from '../../utils/request'
 import type { AlbumShareInfo, AlbumImage } from '../../utils/types'
@@ -107,7 +107,8 @@ onMounted(() => {
                     <div class="text-center mb-8">
                         <div v-if="shareInfo.coverImage"
                             class="w-20 h-20 mx-auto rounded-full overflow-hidden mb-4 shadow-md">
-                            <img :src="thumbnailUrl(shareInfo.coverImage, { width: 160, height: 160, fit: 'cover' })" class="w-full h-full object-cover" />
+                            <img :src="thumbnailUrl(shareInfo.coverImage, { width: 160, height: 160, fit: 'cover' })"
+                                @error="fallbackToOriginal($event, shareInfo.coverImage)" class="w-full h-full object-cover" />
                         </div>
                         <div v-else
                             class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
@@ -179,7 +180,7 @@ onMounted(() => {
                     <div v-for="(img, index) in images" :key="img.image_key"
                         class="aspect-square relative rounded-lg overflow-hidden group cursor-pointer bg-gray-100 dark:bg-gray-800"
                         @click="showPreview(index)">
-                        <el-image :src="thumbOf(img.image_url)" fit="cover"
+                        <el-image :src="thumbOf(img.image_url)" :fallback-src="img.image_url" fit="cover"
                             class="w-full h-full transition-transform duration-500 group-hover:scale-110"
                             loading="lazy" />
                     </div>
@@ -190,7 +191,7 @@ onMounted(() => {
                     <div v-for="(img, index) in images" :key="img.image_key"
                         class="relative rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 cursor-pointer group"
                         @click="showPreview(index)">
-                        <el-image :src="thumbOf(img.image_url)" fit="contain"
+                        <el-image :src="thumbOf(img.image_url)" :fallback-src="img.image_url" fit="contain"
                             class="w-full max-h-[80vh] transition-transform duration-300 group-hover:scale-105"
                             loading="lazy" />
                         <div

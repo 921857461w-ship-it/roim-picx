@@ -3,7 +3,7 @@ import { ref, watch, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { requestListAlbums, requestAddImagesToAlbum } from '../../utils/request'
-import { thumbnailUrl } from '../../utils/thumbnail'
+import { thumbnailUrl, fallbackToOriginal } from '../../utils/thumbnail'
 import type { Album } from '../../utils/types'
 import BaseDialog from '../common/BaseDialog.vue'
 import { faCheckCircle } from '@fortawesome/free-solid-svg-icons'
@@ -90,7 +90,9 @@ onMounted(() => {
                             : 'border-transparent bg-gray-50 dark:bg-gray-800/40 hover:bg-gray-100 dark:hover:bg-gray-800'
                     ]" @click="selectedAlbumId = album.id">
                     <div class="w-10 h-10 rounded-lg bg-gray-200 dark:bg-gray-700 overflow-hidden mr-3 flex-shrink-0">
-                        <img v-if="album.cover_image" :src="thumbnailUrl(album.cover_image, { width: 120, height: 120, fit: 'cover' })" class="w-full h-full object-cover" />
+                        <img v-if="album.cover_image"
+                            :src="thumbnailUrl(album.cover_image, { width: 120, height: 120, fit: 'cover' })"
+                            @error="fallbackToOriginal($event, album.cover_image)" class="w-full h-full object-cover" />
                     </div>
                     <div class="flex-1 min-w-0">
                         <div class="font-medium truncate text-gray-900 dark:text-gray-100">{{ album.name }}</div>

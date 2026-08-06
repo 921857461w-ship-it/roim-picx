@@ -45,3 +45,16 @@ export function dprWidth(cssWidth: number): number {
     const dpr = typeof window !== 'undefined' && window.devicePixelRatio ? window.devicePixelRatio : 1
     return Math.round(cssWidth * Math.min(dpr, 2))
 }
+
+/**
+ * 原生 <img> 加载失败回退：将 src 切回原图。
+ * 仅在当前 src 与原图不同时切换，避免回退仍失败时无限循环。
+ * 用法：@error="fallbackToOriginal($event, originalUrl)"
+ */
+export function fallbackToOriginal(e: Event, originalUrl: string | undefined | null): void {
+    const img = e.target as HTMLImageElement
+    if (!img || !originalUrl) return
+    if (img.getAttribute('src') !== originalUrl) {
+        img.setAttribute('src', originalUrl)
+    }
+}

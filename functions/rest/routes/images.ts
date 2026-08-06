@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import type { R2ListOptions, D1Database } from '@cloudflare/workers-types'
 import { Ok, Fail, ImgItem, ImgList, ImgReq } from '../type'
 import type { User, DbImage } from '../type'
-import { parseRange } from '../utils'
+import { parseRange, rewriteImageOrigin } from '../utils'
 import { auth, type AppEnv } from '../middleware/auth'
 import { listRateLimit, imageRateLimit } from '../middleware/rateLimit'
 import { getProviderByType, getStorageProvider } from '../storage'
@@ -126,7 +126,7 @@ imageRoutes.post('/list', listRateLimit, auth, async (c) => {
                 }
             }
             return {
-                url: provider.getPublicUrl(img.key),
+                url: rewriteImageOrigin(provider.getPublicUrl(img.key), c.req.url),
                 key: img.key,
                 size: img.size,
                 originalName: img.original_name || undefined,
@@ -389,7 +389,7 @@ imageRoutes.get('/delInfo/:token', async (c) => {
 
     return c.json(Ok({
         key: key,
-        url: provider.getPublicUrl(key),
+        url: rewriteImageOrigin(provider.getPublicUrl(key), c.req.url),
         size: object.size,
         originalName: img.original_name
     }))

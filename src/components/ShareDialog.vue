@@ -4,7 +4,8 @@
         <div class="space-y-6">
             <!-- Preview Area -->
             <div class="flex items-center gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl">
-                <img :src="displayCover" class="w-20 h-20 object-cover rounded-lg shadow-sm" />
+                <img :src="displayCover" @error="fallbackToOriginal($event, originalCover)"
+                    class="w-20 h-20 object-cover rounded-lg shadow-sm" />
                 <div class="flex-1 min-w-0">
                     <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ displayName }}</p>
                     <p class="text-xs text-gray-500 dark:text-gray-400">{{ displaySubtext }}</p>
@@ -83,7 +84,7 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { faShare, faSpinner, faRedo, faTimes } from '@fortawesome/free-solid-svg-icons'
 import formatBytes from '../utils/format-bytes'
-import { thumbnailUrl } from '../utils/thumbnail'
+import { thumbnailUrl, fallbackToOriginal } from '../utils/thumbnail'
 import copy from 'copy-to-clipboard'
 import { requestCreateShare, requestShareAlbum } from '../utils/request'
 import type { AlbumShareInfo } from '../utils/types'
@@ -134,8 +135,10 @@ const displayName = computed(() => {
     return props.type === 'image' ? props.imageName : props.albumName
 })
 
+const originalCover = computed(() => props.type === 'image' ? props.imageUrl : props.coverImage)
+
 const displayCover = computed(() => {
-    const url = props.type === 'image' ? props.imageUrl : props.coverImage // Album cover could be added if available, for now empty or default
+    const url = originalCover.value // Album cover could be added if available, for now empty or default
     // 弹窗封面小图：边缘缩放 + WebP 自动协商
     return thumbnailUrl(url, { width: 200, height: 200, fit: 'cover' })
 })

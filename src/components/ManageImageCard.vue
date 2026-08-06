@@ -66,7 +66,7 @@ const displayGetName = (key: string) => {
 
         <!-- Full Background Image -->
         <div class="absolute inset-0">
-            <el-image :src="thumbSrc" fit="cover"
+            <el-image :src="thumbSrc" :fallback-src="item.url" fit="cover"
                 class="w-full h-full transition-transform duration-700 group-hover:scale-105" 
                 :class="{ 'blur-xl': isNsfw && !showNsfw }"
                 loading="lazy">

@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { Ok, Fail, type DbShare } from '../type'
 import { auth, type AppEnv } from '../middleware/auth'
 import { getProviderByType } from '../storage'
+import { rewriteImageOrigin } from '../utils'
 
 // Sync the response format with previous KV implementation for compatibility
 interface ShareResponse {
@@ -109,7 +110,7 @@ shareRoutes.post('/share', auth, async (c) => {
             )
         }
 
-        const shareUrl = `${c.env.BASE_URL}/s/${shareId}`
+        const shareUrl = `${new URL(c.req.url).origin}/s/${shareId}`
 
         return c.json(Ok({
             id: shareId,
@@ -152,7 +153,7 @@ shareRoutes.get('/share/my', auth, async (c) => {
             return <ShareResponse>{
                 id: record.id,
                 imageKey: record.image_key,
-                imageUrl: provider.getPublicUrl(record.image_key),
+                imageUrl: rewriteImageOrigin(provider.getPublicUrl(record.image_key), c.req.url),
                 hasPassword: !!record.password_hash,
                 expireAt: expireAt,
                 maxViews: record.max_views || undefined,
@@ -160,7 +161,7 @@ shareRoutes.get('/share/my', auth, async (c) => {
                 createdAt: createdAt,
                 isExpired,
                 isMaxedOut,
-                url: `${c.env.BASE_URL}/s/${record.id}`
+                url: `${new URL(c.req.url).origin}/s/${record.id}`
             }
         }))
 
@@ -254,7 +255,7 @@ shareRoutes.post('/share/:id/verify', async (c) => {
     const provider = getProviderByType(c, img?.storage_type || 'R2')
 
     return c.json(Ok({
-        imageUrl: provider.getPublicUrl(record.image_key),
+        imageUrl: rewriteImageOrigin(provider.getPublicUrl(record.image_key), c.req.url),
         imageKey: record.image_key,
         views: record.current_views + 1,
         maxViews: record.max_views

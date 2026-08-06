@@ -33,7 +33,7 @@
                     <!-- Thumbnail -->
                     <div class="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-700 cursor-pointer hover:ring-2 hover:ring-indigo-500 transition-all"
                         @click="openPreview(share.imageUrl)">
-                        <el-image class="w-full h-full object-cover" :src="thumbnailUrl(share.imageUrl, { width: 160, height: 160, fit: 'cover' })" fit="cover" lazy>
+                        <el-image class="w-full h-full object-cover" :src="thumbnailUrl(share.imageUrl, { width: 160, height: 160, fit: 'cover' })" :fallback-src="share.imageUrl" fit="cover" lazy>
                             <template #placeholder>
                                 <div
                                     class="w-full h-full flex items-center justify-center text-gray-300 dark:text-gray-600">

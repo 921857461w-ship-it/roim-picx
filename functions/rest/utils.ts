@@ -42,6 +42,24 @@ export async function checkFileType(val: string, db: D1Database): Promise<boolea
     return config.some(it => it.type === val)
 }
 
+/**
+ * 将图片 URL 归一化到当前请求源（origin）。
+ * 背景：图片 URL 由 BASE_URL 环境变量拼接，若 BASE_URL 配置错误
+ * （如 localhost / http 协议 / 失效域名）会导致列表正常但图片全部无法加载。
+ * 以当前请求源重写可彻底消除该配置依赖；非 /rest/ 链接（外链等）原样返回。
+ */
+export function rewriteImageOrigin(url: string | null | undefined, requestUrl: string): string {
+    if (!url) return ''
+    const idx = url.indexOf('/rest/')
+    if (idx === -1) return url
+    try {
+        const origin = new URL(requestUrl).origin
+        return origin + url.slice(idx)
+    } catch {
+        return url
+    }
+}
+
 // 获取文件名
 export async function getFileName(val: string, time: number, db: D1Database): Promise<string> {
     const service = new ConfigService(db)

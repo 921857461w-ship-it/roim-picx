@@ -14,7 +14,7 @@
     <!-- Thumbnail -->
     <div
       class="relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-700">
-      <el-image class="w-full h-full object-cover" :src="thumbSrc" fit="cover" hide-on-click-modal lazy
+      <el-image class="w-full h-full object-cover" :src="thumbSrc" :fallback-src="src" fit="cover" hide-on-click-modal lazy
         :class="{ 'blur-md': isNsfw && !showNsfw }"
         @error="imageError = true" :preview-src-list="[src]">
         <template #placeholder>
