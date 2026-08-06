@@ -46,8 +46,8 @@ watch(() => route.path, () => {
 const navItems = computed(() => {
     const items = [
         { path: '/up', label: t('nav.upload'), icon: faUpload },
-        { path: '/', label: t('nav.manage'), icon: faCog },
-        { path: '/albums', label: t('nav.albums'), icon: faFolder },
+        { path: '/', label: t('nav.albums'), icon: faFolder },
+        { path: '/manage', label: t('nav.manage'), icon: faCog },
         { path: '/shares', label: t('nav.myShares'), icon: faShareAlt }
     ]
     if (isAdmin.value) {

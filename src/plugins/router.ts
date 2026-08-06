@@ -10,7 +10,14 @@ const router = createRouter({
 			component: DefaultLayout,
 			children: [
 				{
+					// 首页绑定相册列表
 					path: '',
+					component: () => import('../components/album/AlbumList.vue'),
+					meta: { requiresAuth: true }
+				},
+				{
+					// 图片管理移至 /manage
+					path: 'manage',
 					component: () => import('../views/ManageImages.vue')
 				},
 				{
@@ -27,9 +34,9 @@ const router = createRouter({
 					component: () => import('../views/MySharesView.vue')
 				},
 				{
+					// 兼容旧路径：/albums 重定向到首页相册列表
 					path: 'albums',
-					component: () => import('../components/album/AlbumList.vue'),
-					meta: { requiresAuth: true }
+					redirect: '/'
 				},
 				{
 					path: 'albums/:id',
