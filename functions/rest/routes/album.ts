@@ -2,8 +2,21 @@ import { Hono } from 'hono'
 import { Ok, Fail } from '../type'
 import { auth, type AppEnv } from '../middleware/auth'
 import { rewriteImageOrigin } from '../utils'
+import { ensureAlbumSchema } from '../services/schema'
 
 const albumRoutes = new Hono<AppEnv>()
+
+// 表结构自愈：Cloudflare Pages 不会自动执行 D1 迁移，
+// 缺少 albums.enable_random_image 等后加列时会导致创建/列表失败，
+// 首次访问时幂等补齐表结构（每 isolate 仅一次）
+albumRoutes.use('*', async (c, next) => {
+    try {
+        await ensureAlbumSchema(c.env.DB)
+    } catch (e) {
+        console.error('ensureAlbumSchema failed:', e)
+    }
+    await next()
+})
 
 // Helper for generic SQL results
 interface DbAlbum {
@@ -109,7 +122,7 @@ albumRoutes.post('/albums', auth, async (c) => {
         }))
     } catch (e) {
         console.error('Create album error:', e)
-        return c.json(Fail('创建相册失败'))
+        return c.json(Fail(`创建相册失败: ${(e as Error).message}`))
     }
 })
 
