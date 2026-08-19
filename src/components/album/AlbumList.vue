@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
     ElInput, ElButton, ElDialog, ElCard, ElEmpty, ElDropdown, ElDropdownMenu, ElDropdownItem,
-    ElMessageBox, ElMessage, ElSwitch
+    ElMessageBox, ElMessage, ElSwitch, ElSelect, ElOption
 } from 'element-plus'
 import {
     faPlus, faSearch, faFolder, faEllipsisVertical, faPen, faTrash, faTimes, faShareNodes, faRedo
@@ -65,15 +65,22 @@ watch(searchQuery, () => {
 
 const handleCreate = () => {
     dialogMode.value = 'create'
-    currentAlbum.value = { name: '', description: '', enableRandomImage: false }
+    currentAlbum.value = { name: '', description: '', enableRandomImage: false, tags: [] }
     dialogVisible.value = true
 }
 
 const handleEdit = (album: Album) => {
     dialogMode.value = 'edit'
-    currentAlbum.value = { ...album }
+    currentAlbum.value = { ...album, tags: album.tags || [] }
     dialogVisible.value = true
 }
+
+// 常用标签预设 + 已有相册使用过的标签，供下拉选择（也可自由输入新标签）
+const tagOptions = computed(() => {
+    const set = new Set<string>(['人像', '风光'])
+    albums.value.forEach(a => (a.tags || []).forEach(t => set.add(t)))
+    return [...set]
+})
 
 const handleSubmit = async () => {
     if (!currentAlbum.value.name) {
@@ -87,7 +94,8 @@ const handleSubmit = async () => {
             await requestCreateAlbum({
                 name: currentAlbum.value.name,
                 description: currentAlbum.value.description || undefined,
-                enableRandomImage: currentAlbum.value.enableRandomImage || false
+                enableRandomImage: currentAlbum.value.enableRandomImage || false,
+                tags: currentAlbum.value.tags || []
             })
             ElMessage.success(t('album.createSuccess'))
         } else {
@@ -95,7 +103,8 @@ const handleSubmit = async () => {
                 name: currentAlbum.value.name!,
                 description: currentAlbum.value.description || undefined,
                 coverImage: currentAlbum.value.cover_image || undefined,
-                enableRandomImage: currentAlbum.value.enableRandomImage || false
+                enableRandomImage: currentAlbum.value.enableRandomImage || false,
+                tags: currentAlbum.value.tags || []
             })
             ElMessage.success(t('album.updateSuccess'))
         }
@@ -189,6 +198,14 @@ onMounted(() => {
                 :placeholder="$t('album.namePlaceholder')" />
             <BaseInput v-model="currentAlbum.description" type="textarea" :label="$t('album.description')"
                 :placeholder="$t('album.descPlaceholder')" />
+
+            <div>
+                <span class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ $t('album.tags') }}</span>
+                <el-select v-model="currentAlbum.tags" multiple filterable allow-create default-first-option
+                    :placeholder="$t('album.tagsPlaceholder')" class="w-full">
+                    <el-option v-for="tag in tagOptions" :key="tag" :label="tag" :value="tag" />
+                </el-select>
+            </div>
 
             <div class="flex items-center justify-between">
                 <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ $t('album.enableRandomImage')

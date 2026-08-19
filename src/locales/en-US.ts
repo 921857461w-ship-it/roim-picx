@@ -404,6 +404,8 @@ export default {
         shared: 'Shared',
         enableRandomImage: 'Enable Random Image',
         randomImageUrl: 'Random Image URL',
+        tags: 'Tags',
+        tagsPlaceholder: 'Type a tag and press Enter, e.g. Portrait, Landscape',
     },
     delete: {
         title: 'Delete Image',

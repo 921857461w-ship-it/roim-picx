@@ -259,8 +259,8 @@ export const requestListAlbums = (keyword?: string): Promise<Album[]> => {
 	if (keyword) query.set('keyword', keyword)
 	return request.get(`/rest/albums?${query.toString()}`)
 }
-export const requestCreateAlbum = (data: { name: string, description?: string, coverImage?: string, enableRandomImage?: boolean }): Promise<Album> => request.post('/rest/albums', data)
-export const requestUpdateAlbum = (id: number, data: { name: string, description?: string, coverImage?: string, enableRandomImage?: boolean }): Promise<Album> => request.put(`/rest/albums/${id}`, data)
+export const requestCreateAlbum = (data: { name: string, description?: string, coverImage?: string, enableRandomImage?: boolean, tags?: string[] }): Promise<Album> => request.post('/rest/albums', data)
+export const requestUpdateAlbum = (id: number, data: { name: string, description?: string, coverImage?: string, enableRandomImage?: boolean, tags?: string[] }): Promise<Album> => request.put(`/rest/albums/${id}`, data)
 export const requestDeleteAlbum = (id: number): Promise<any> => request.delete(`/rest/albums/${id}`)
 export const requestGetAlbum = (id: number, params?: { page?: number, limit?: number }): Promise<{ album: Album, images: AlbumImage[], total: number }> => {
 	const query = new URLSearchParams()

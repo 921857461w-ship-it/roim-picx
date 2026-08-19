@@ -49,6 +49,10 @@ const EXTRA_COLUMNS: Record<string, Array<{ column: string, alter: string }>> = 
         {
             column: 'enable_random_image',
             alter: 'ALTER TABLE albums ADD COLUMN enable_random_image INTEGER DEFAULT 0'
+        },
+        {
+            column: 'tags',
+            alter: 'ALTER TABLE albums ADD COLUMN tags TEXT'
         }
     ]
 }

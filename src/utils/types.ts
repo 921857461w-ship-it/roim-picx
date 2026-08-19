@@ -183,6 +183,7 @@ export interface Album {
 	description: string | null
 	cover_image: string | null
 	enableRandomImage?: boolean
+	tags?: string[]
 	created_at: number
 	updated_at: number
 	imageCount?: number

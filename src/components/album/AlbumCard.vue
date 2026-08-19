@@ -84,6 +84,10 @@ const { t } = useI18n()
         <div
             class="absolute bottom-0 left-0 right-0 p-4 bg-white/60 dark:bg-gray-900/60 backdrop-blur-md border-t border-white/20 dark:border-white/5 transition-all">
             <h3 class="font-bold text-gray-900 dark:text-gray-100 truncate mb-0.5">{{ album.name }}</h3>
+            <div v-if="album.tags && album.tags.length" class="flex flex-wrap gap-1 mb-1">
+                <span v-for="tag in album.tags" :key="tag"
+                    class="text-[10px] leading-4 px-1.5 rounded bg-indigo-500/15 text-indigo-700 dark:text-indigo-300">{{ tag }}</span>
+            </div>
             <p class="text-xs text-gray-500 dark:text-gray-400 flex items-center justify-between">
                 <span>{{ album.imageCount }} {{ $t('album.items') }}</span>
             </p>

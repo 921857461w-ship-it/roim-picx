@@ -405,6 +405,8 @@ export default {
         shared: '已分享',
         enableRandomImage: '允许获取随机图片',
         randomImageUrl: '随机图片链接',
+        tags: '标签',
+        tagsPlaceholder: '输入标签后回车，如：人像、风光',
     },
     delete: {
         title: '删除图片',

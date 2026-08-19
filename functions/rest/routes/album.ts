@@ -26,8 +26,24 @@ interface DbAlbum {
     description: string | null
     cover_image: string | null
     enable_random_image: number
+    tags: string | null
     created_at: number
     updated_at: number
+}
+
+// 解析 DB 中逗号分隔的 tags 为数组
+function parseTags(raw: string | null | undefined): string[] {
+    if (!raw) return []
+    return raw.split(',').map(t => t.trim()).filter(Boolean)
+}
+
+// 接受数组或逗号分隔字符串，归一化为逗号分隔存储格式
+function normalizeTagsInput(input: string[] | string | undefined | null): string | null {
+    if (!input) return null
+    const arr = (Array.isArray(input) ? input : String(input).split(','))
+        .map(t => String(t).trim()).filter(Boolean)
+    const uniq = [...new Set(arr)]
+    return uniq.length ? uniq.join(',') : null
 }
 
 // === Management Endpoints ===
@@ -80,6 +96,7 @@ albumRoutes.get('/albums', auth, async (c) => {
                 ...album,
                 cover_image: rewriteImageOrigin(album.cover_image, c.req.url),
                 enableRandomImage: !!album.enable_random_image,
+                tags: parseTags(album.tags),
                 imageCount: countRes?.count || 0,
                 shareInfo: { ...share }
             }
@@ -97,8 +114,8 @@ albumRoutes.post('/albums', auth, async (c) => {
     const user = c.get('user')
     if (!user) return c.json(Fail('未登录'), 401)
 
-    const { name, description, coverImage, enableRandomImage } = await c.req.json<{
-        name: string, description?: string, coverImage?: string, enableRandomImage?: boolean
+    const { name, description, coverImage, enableRandomImage, tags } = await c.req.json<{
+        name: string, description?: string, coverImage?: string, enableRandomImage?: boolean, tags?: string[] | string
     }>()
 
     if (!name) return c.json(Fail('相册名称不能为空'))
@@ -106,9 +123,9 @@ albumRoutes.post('/albums', auth, async (c) => {
     const now = Date.now()
     try {
         const result = await c.env.DB.prepare(
-            `INSERT INTO albums (user_id, name, description, cover_image, enable_random_image, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`
-        ).bind(user.id, name, description || null, coverImage || null, enableRandomImage ? 1 : 0, now, now).run()
+            `INSERT INTO albums (user_id, name, description, cover_image, enable_random_image, tags, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        ).bind(user.id, name, description || null, coverImage || null, enableRandomImage ? 1 : 0, normalizeTagsInput(tags), now, now).run()
 
         return c.json(Ok({
             id: result.meta.last_row_id,
@@ -116,6 +133,7 @@ albumRoutes.post('/albums', auth, async (c) => {
             description,
             coverImage,
             enableRandomImage: !!enableRandomImage,
+            tags: parseTags(normalizeTagsInput(tags)),
             createdAt: now,
             updatedAt: now,
             imageCount: 0
@@ -130,8 +148,8 @@ albumRoutes.post('/albums', auth, async (c) => {
 albumRoutes.put('/albums/:id', auth, async (c) => {
     const user = c.get('user')
     const id = c.req.param('id')
-    const { name, description, coverImage, enableRandomImage } = await c.req.json<{
-        name: string, description?: string, coverImage?: string, enableRandomImage?: boolean
+    const { name, description, coverImage, enableRandomImage, tags } = await c.req.json<{
+        name: string, description?: string, coverImage?: string, enableRandomImage?: boolean, tags?: string[] | string
     }>()
 
     try {
@@ -142,10 +160,10 @@ albumRoutes.put('/albums/:id', auth, async (c) => {
 
         const now = Date.now()
         await c.env.DB.prepare(
-            `UPDATE albums SET name = ?, description = ?, cover_image = ?, enable_random_image = ?, updated_at = ? WHERE id = ?`
-        ).bind(name, description || null, coverImage || null, enableRandomImage ? 1 : 0, now, id).run()
+            `UPDATE albums SET name = ?, description = ?, cover_image = ?, enable_random_image = ?, tags = ?, updated_at = ? WHERE id = ?`
+        ).bind(name, description || null, coverImage || null, enableRandomImage ? 1 : 0, normalizeTagsInput(tags), now, id).run()
 
-        return c.json(Ok({ id, name, description, coverImage, enableRandomImage: !!enableRandomImage, updatedAt: now }))
+        return c.json(Ok({ id, name, description, coverImage, enableRandomImage: !!enableRandomImage, tags: parseTags(normalizeTagsInput(tags)), updatedAt: now }))
     } catch (e) {
         return c.json(Fail('更新相册失败'))
     }
@@ -196,7 +214,8 @@ albumRoutes.get('/albums/:id', auth, async (c) => {
             album: {
                 ...album,
                 cover_image: rewriteImageOrigin(album.cover_image, c.req.url),
-                enableRandomImage: !!album.enable_random_image
+                enableRandomImage: !!album.enable_random_image,
+                tags: parseTags(album.tags)
             },
             images: (images.results || []).map((img: any) => ({
                 ...img,
