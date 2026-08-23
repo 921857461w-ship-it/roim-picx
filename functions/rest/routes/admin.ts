@@ -3,6 +3,7 @@ import { Ok, Fail, FailCode } from '../type'
 import StatusCode from '../type'
 import type { User, DbUser, UserStats } from '../type'
 import { auth, type AppEnv, isAdminUser, adminAuth } from '../middleware/auth'
+import { generateVariants } from '../services/variantGenerator'
 
 const adminRoutes = new Hono<AppEnv>()
 
@@ -679,6 +680,62 @@ adminRoutes.post('/sync-r2-to-d1', auth, adminAuth, async (c) => {
     } catch (e) {
         console.error('Sync failed:', e)
         return c.json(Fail(`同步失败: ${(e as Error).message}`))
+    }
+})
+
+// ============================================
+// 一键补变体接口
+// ============================================
+
+/**
+ * 一键补变体：为存量 jpeg/png 原图批量生成 webp/-hd.webp 变体（幂等，已有变体自动跳过）
+ * body: {
+ *   limit?: number  本次处理的原图数量（默认 20，最大 100）
+ *   key?: string    只处理指定原图（如 "棚拍/xxx.jpeg"）
+ *   force?: boolean 强制重新生成已存在的变体
+ * }
+ */
+adminRoutes.post('/generate-variants', auth, adminAuth, async (c) => {
+    try {
+        const body = await c.req.json().catch(() => ({}))
+        const limit = Math.min(parseInt(body.limit || '20') || 20, 100)
+        const force = body.force === true
+        const onlyKey: string | undefined = body.key
+
+        let originals: Array<{ key: string, user_login: string | null }>
+        if (onlyKey) {
+            const row = await c.env.DB.prepare('SELECT key, user_login FROM images WHERE key = ?')
+                .bind(onlyKey).first<{ key: string, user_login: string }>()
+            originals = row ? [row] : []
+        } else {
+            const res = await c.env.DB.prepare(
+                `SELECT key, user_login FROM images
+                 WHERE mime_type IN ('image/jpeg', 'image/png')
+                   AND size >= 204800
+                   AND key NOT LIKE '%-hd.webp'
+                   AND (original_name IS NULL OR original_name NOT LIKE 'variant:%')
+                 ORDER BY created_at DESC LIMIT ?`
+            ).bind(limit).all<{ key: string, user_login: string }>()
+            originals = res.results || []
+        }
+
+        const results = { total: originals.length, generated: 0, skipped: 0, failed: 0, details: [] as any[] }
+        for (const img of originals) {
+            try {
+                const r = await generateVariants(c, img.key, { userLogin: img.user_login || undefined, force })
+                if (r.thumbKey || r.hdKey) results.generated++
+                else if (r.skipped) results.skipped++
+                else results.failed++
+                results.details.push({ key: img.key, ...r })
+            } catch (e) {
+                results.failed++
+                results.details.push({ key: img.key, error: (e as Error).message })
+            }
+        }
+        return c.json(Ok(results))
+    } catch (e) {
+        console.error('Generate variants failed:', e)
+        return c.json(Fail(`变体生成失败: ${(e as Error).message}`))
     }
 })
 

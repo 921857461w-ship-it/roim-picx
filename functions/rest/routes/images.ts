@@ -10,6 +10,7 @@ import {
     parseTransformOptions, hasTransformOptions, isTransformable, transformImage,
     type ImageTransformOptions
 } from '../services/imageTransform'
+import { deleteVariantsOf } from '../services/variantGenerator'
 
 const imageRoutes = new Hono<AppEnv>()
 
@@ -331,6 +332,9 @@ async function deleteImageFromDb(c: any, key: string): Promise<void> {
 
             // 删除图片记录
             await db.prepare('DELETE FROM images WHERE key = ?').bind(key).run()
+
+            // 级联删除自动生成的 webp 变体
+            await deleteVariantsOf(c, key)
 
             // 更新用户存储统计
             await db.prepare(

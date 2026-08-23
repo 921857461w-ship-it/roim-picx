@@ -6,6 +6,7 @@ import { auth, type AppEnv } from '../middleware/auth'
 import { uploadRateLimit } from '../middleware/rateLimit'
 import { getStorageProvider, getProviderByType } from '../storage'
 import { ensureFolderRecords } from './folders'
+import { shouldGenerateVariants, generateVariants } from '../services/variantGenerator'
 
 const uploadRoutes = new Hono<AppEnv>()
 
@@ -33,6 +34,8 @@ uploadRoutes.post('/upload', uploadRateLimit, auth, async (c) => {
     const relativePaths = files.getAll("relativePaths").map(v => v.toString())
     let customPath = files.get("path")
     const keepName = files.get("keepName") === 'true'
+    // 传 skipVariants=true 可跳过自动变体生成
+    const skipVariants = files.get("skipVariants") === 'true'
     const expireAt = files.get("expireAt")
     const tagsRaw = files.get("tags")?.toString()
     const tags = tagsRaw ? tagsRaw.split(',').map(t => t.trim()).filter(t => t.length > 0) : []
@@ -188,6 +191,16 @@ uploadRoutes.post('/upload', uploadRateLimit, auth, async (c) => {
                             `INSERT INTO audit_logs (user_id, user_login, action, target_key, details) 
                              VALUES (?, ?, 'upload', ?, ?)`
                         ).bind(user.id, user.login, object.key, JSON.stringify({ size: finalSize, originalName: originalName, storageType })).run()
+                    }).then(() => {
+                        // 大体积 jpeg/png 原图自动生成 webp 变体（此时 DB 已入库，转换请求可命中）
+                        if (storageType === 'R2' && !skipVariants && shouldGenerateVariants(fileType, object.key, finalSize)) {
+                            return generateVariants(c, object.key, { userLogin: user!.login })
+                                .then(r => {
+                                    if (r.error) console.warn(`[Upload] Variants partial - key: ${object.key}, ${r.error}`)
+                                    else if (r.thumbKey || r.hdKey) console.log(`[Upload] Variants generated - key: ${object.key}`)
+                                })
+                                .catch(e => console.error(`[Upload] Variant generation failed - key: ${object.key}`, e))
+                        }
                     }).catch(e => {
                         console.error(`[Upload] Failed to sync image to DB - key: ${object.key}, error:`, e)
                     })
