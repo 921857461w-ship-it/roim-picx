@@ -5,13 +5,32 @@ import { checkFileType, getFileName, rewriteImageOrigin } from '../utils'
 import { auth, type AppEnv } from '../middleware/auth'
 import { uploadRateLimit } from '../middleware/rateLimit'
 import { getStorageProvider, getProviderByType } from '../storage'
+import { ensureFolderRecords } from './folders'
 
 const uploadRoutes = new Hono<AppEnv>()
+
+/**
+ * 从文件相对路径（如 'photos/travel/a.jpg'）提取并清洗目录部分，
+ * 返回以 / 结尾的目录前缀（如 'photos/travel/'）；无目录时返回 ''。
+ */
+function sanitizeRelativeFolder(relativePath: string | undefined | null): string {
+    if (!relativePath) return ''
+    const normalized = relativePath.replace(/\\/g, '/').replace(/^\/+/, '')
+    const parts = normalized.split('/')
+    if (parts.length <= 1) return ''
+    const dirs = parts.slice(0, -1)
+        .map(seg => seg.trim().replace(/[^a-zA-Z0-9._\u4e00-\u9fa5-]/g, '_'))
+        .filter(seg => seg.length > 0 && seg !== '.' && seg !== '..')
+    if (dirs.length === 0) return ''
+    return dirs.join('/') + '/'
+}
 
 // batch upload file (with rate limiting)
 uploadRoutes.post('/upload', uploadRateLimit, auth, async (c) => {
     const files = await c.req.formData()
     const images = files.getAll("files")
+    // 与 files 一一对应的相对路径（文件夹上传时前端附带，用于自动创建目录）
+    const relativePaths = files.getAll("relativePaths").map(v => v.toString())
     let customPath = files.get("path")
     const keepName = files.get("keepName") === 'true'
     const expireAt = files.get("expireAt")
@@ -51,13 +70,24 @@ uploadRoutes.post('/upload', uploadRateLimit, auth, async (c) => {
 
     const errs: string[] = []
     const urls = Array<ImgItem>()
-    for (let item of images) {
+    // 需要登记到 folders 表的目录（去重）
+    const foldersToRegister = new Set<string>()
+    for (let idx = 0; idx < images.length; idx++) {
+        const item = images[idx]
+        if (typeof item === 'string') continue
         const file = item as File
         const fileType = file.type
         // checkFileType is now async and needs DB
         if (!await checkFileType(fileType, c.env.DB)) {
             errs.push(`${fileType} not support.`)
             continue
+        }
+
+        // 解析文件自带的相对目录（文件夹上传），自动并入目标路径
+        const relFolder = sanitizeRelativeFolder(relativePaths[idx])
+        const targetPath = customPath + relFolder
+        if (relFolder && user) {
+            foldersToRegister.add(targetPath)
         }
         const delToken = crypto.randomUUID()
         const time = new Date().getTime()
@@ -80,7 +110,7 @@ uploadRoutes.post('/upload', uploadRateLimit, auth, async (c) => {
             filename = await getFileName(fileType, time, c.env.DB)
         }
 
-        const fullPath = customPath + filename
+        const fullPath = targetPath + filename
 
         // If keeping original name, check if file already exists to prevent overwrite
         if (keepName) {
@@ -136,7 +166,7 @@ uploadRoutes.post('/upload', uploadRateLimit, auth, async (c) => {
                         originalName || null,
                         finalSize,
                         fileType,
-                        customPath || '',
+                        targetPath || '',
                         expireAt ? new Date(parseInt(expireAt.toString())).toISOString() : null,
                         storageType,
                         tagsJson,
@@ -203,6 +233,21 @@ uploadRoutes.post('/upload', uploadRateLimit, auth, async (c) => {
             })
         }
     }
+
+    // 文件夹上传时自动登记目录记录（含各级祖先），使目录导航实时可见；
+    // 同时兼容旧表缺失的情况，失败不影响上传结果。
+    if (foldersToRegister.size > 0 && user) {
+        c.executionCtx.waitUntil((async () => {
+            try {
+                for (const path of foldersToRegister) {
+                    await ensureFolderRecords(c.env.DB, user.login, path)
+                }
+            } catch (e) {
+                console.error('[Upload] Failed to register folders:', e)
+            }
+        })())
+    }
+
     return c.json(Build(urls, errs.toString()))
 })
 

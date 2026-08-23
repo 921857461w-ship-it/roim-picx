@@ -3,6 +3,14 @@ export type ConvertedImage = {
 	tmpSrc: string
 	nsfw?: boolean
 	nsfwScore?: number
+	// 文件夹上传时的相对路径（含文件名，如 'photos/travel/a.jpg'）
+	relativePath?: string
+}
+
+// 带相对路径的待处理文件（文件夹选择/拖拽文件夹时使用）
+export type FileEntry = {
+	file: File
+	relativePath?: string
 }
 
 export type UploadedImage = {
@@ -59,6 +67,8 @@ export interface ImgReq {
 }
 export interface Folder {
 	name: string
+	// 父目录路径（以 / 结尾，空字符串表示根目录）
+	parent?: string
 }
 
 export interface User {

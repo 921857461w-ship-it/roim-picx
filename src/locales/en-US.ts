@@ -111,6 +111,8 @@ export default {
         maxSize: 'Max',
         dropzone: 'Click or drag images here',
         dropzoneHint: 'Supports single or multiple uploads, max 20MB, JPG, PNG, GIF, WEBP, SVG',
+        uploadFolder: 'Upload a Folder',
+        uploadFolderHint: 'Select or drop a whole folder; directories are created automatically',
         pendingInfo: 'Pending Upload',
         count: '{count} files',
         originalSize: 'Original',

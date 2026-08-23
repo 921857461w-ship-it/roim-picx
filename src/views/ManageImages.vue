@@ -504,12 +504,21 @@ const handleAddFolderConfirm = async () => {
     }
 
     loading.value = true
+    const folderName = folderNameValue.value
     try {
+        // 在当前目录下创建（根目录时 parent 为空）
+        const parent = delimiter.value === '/' ? '' : String(delimiter.value)
         await createFolder(<Folder>{
-            name: folderNameValue.value
+            name: folderName,
+            parent
         })
         ElMessage.success(t('manage.folderCreated'))
         folderDialogVisible.value = false
+        // 乐观更新：立即在目录导航中展示新目录，避免等待接口返回前空白
+        const newPath = parent + folderName + '/'
+        if (!prefixes.value.includes(newPath)) {
+            prefixes.value = [...prefixes.value, newPath].sort((a, b) => String(a).localeCompare(String(b)))
+        }
         listImages()
     } catch (err) {
         console.error(err)

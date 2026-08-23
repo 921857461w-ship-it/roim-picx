@@ -80,7 +80,7 @@ import { ElNotification as elNotify } from 'element-plus'
 import { requestUploadImages, requestListImages, requestAuthConfig, requestListAlbums, type StorageProvider } from '../utils/request'
 import { useRouter } from 'vue-router'
 import ResultList from '../components/ResultList.vue'
-import type { ConvertedImage, ImgItem, ImgReq, Album } from '../utils/types'
+import type { ConvertedImage, ImgItem, ImgReq, Album, FileEntry } from '../utils/types'
 import { compressionLevels, compressImage } from '../utils/compress'
 import { applyWatermark, defaultWatermarkConfig, type WatermarkConfig } from '../utils/watermark'
 import * as tf from '@tensorflow/tfjs'
@@ -101,7 +101,6 @@ const imagesTotalSize = computed(() =>
 )
 
 const imageSizeLimit = 20 * 1024 * 1024
-const input = ref<HTMLInputElement>()
 const loading = ref(false)
 const router = useRouter()
 const customPath = ref('')
@@ -113,6 +112,8 @@ const compressionLevel = ref('none')
 const originalTotalSize = ref(0)
 const watermarkConfig = ref<WatermarkConfig>({ ...defaultWatermarkConfig })
 const uploadTags = ref<string[]>([])
+// 与 originalFiles 一一对应的相对路径（文件夹上传时用于自动建目录）
+const originalFilePaths = ref<(string | undefined)[]>([])
 
 const storageProviders = ref<StorageProvider[]>([])
 const selectedStorageType = ref<'R2' | 'HF'>('R2')
@@ -203,7 +204,9 @@ const recompressImages = async () => {
     convertedImages.value = []
 
     // Re-compress each original file
-    for (const file of originalFiles.value) {
+    for (let i = 0; i < originalFiles.value.length; i++) {
+        const file = originalFiles.value[i]
+        const relativePath = originalFilePaths.value[i]
         try {
             // Step 1: Compress
             const compressResult = await compressImage(file, currentCompressionLevel.value)
@@ -215,7 +218,8 @@ const recompressImages = async () => {
                 ...convertedImages.value,
                 {
                     file: watermarkResult.file,
-                    tmpSrc: URL.createObjectURL(watermarkResult.file)
+                    tmpSrc: URL.createObjectURL(watermarkResult.file),
+                    relativePath
                 }
             ]
         } catch (e) {
@@ -224,7 +228,8 @@ const recompressImages = async () => {
                 ...convertedImages.value,
                 {
                     file,
-                    tmpSrc: URL.createObjectURL(file)
+                    tmpSrc: URL.createObjectURL(file),
+                    relativePath
                 }
             ]
         }
@@ -237,27 +242,33 @@ const disabledDate = (time: Date) => {
     return time.getTime() < Date.now()
 }
 
-const fetchDirectories = () => {
-    requestListImages(<ImgReq>{
-        limit: 100,
-        delimiter: '/'
-    }).then((data) => {
-        if (data.prefixes && data.prefixes.length) {
-            directorySuggestions.value = data.prefixes.map(prefix => String(prefix).replace(/\/$/, ''))
+// 逐级拉取目录建议（含新建的空目录），供储存目录自动补全使用，最多 3 层避免请求过多
+type PrefixData = { prefixes?: string[] }
+const fetchDirectoryLevel = async (delimiter: string, collected: Set<string>, depth: number) => {
+    if (depth > 3 || collected.size >= 200) return
+    try {
+        const data = await requestListImages(<ImgReq>{ limit: 1, delimiter }) as PrefixData
+        for (const prefix of data.prefixes || []) {
+            const path = String(prefix)
+            if (path === '/' || collected.has(path)) continue
+            collected.add(path)
+            await fetchDirectoryLevel(path, collected, depth + 1)
         }
-    }).catch(err => {
-        console.error('Failed to fetch directories:', err)
-    })
+    } catch (e) {
+        console.error('Failed to fetch directories:', e)
+    }
 }
 
-const onInputChange = () => {
-    appendConvertedImages(input.value?.files)
+const fetchDirectories = async () => {
+    const collected = new Set<string>()
+    await fetchDirectoryLevel('/', collected, 1)
+    directorySuggestions.value = Array.from(collected).sort()
 }
-const onFileDrop = (e: DragEvent) => {
-    appendConvertedImages(e.dataTransfer?.files)
-}
+
 const onPaste = (e: ClipboardEvent) => {
-    appendConvertedImages(e.clipboardData?.files)
+    const files = e.clipboardData?.files
+    if (!files) return
+    appendConvertedImages(Array.from(files).map(file => ({ file })))
 }
 
 onMounted(async () => {
@@ -302,20 +313,17 @@ const clearInput = () => {
     convertedImages.value.forEach(item => URL.revokeObjectURL(item.tmpSrc))
     convertedImages.value = []
     originalFiles.value = []
+    originalFilePaths.value = []
     originalTotalSize.value = 0
     imgResultList.value = []
-    // Reset input to allow selecting the same file again
-    if (input.value) {
-        input.value.value = ''
-    }
 }
 
-const appendConvertedImages = async (files: FileList | null | undefined) => {
-    if (!files) return
+const appendConvertedImages = async (entries: FileEntry[] | null | undefined) => {
+    if (!entries || entries.length === 0) return
 
     loading.value = true
-    for (let i = 0; i < files.length; i++) {
-        const file = files.item(i)
+    for (const entry of entries) {
+        const file = entry.file
         if (!file) continue
         if (file.size > imageSizeLimit) {
             elNotify({
@@ -335,6 +343,7 @@ const appendConvertedImages = async (files: FileList | null | undefined) => {
 
         // Store original file for re-compression
         originalFiles.value = [...originalFiles.value, file]
+        originalFilePaths.value = [...originalFilePaths.value, entry.relativePath]
         originalTotalSize.value += file.size
 
         // Compress image if compression is enabled, then apply watermark
@@ -375,7 +384,8 @@ const appendConvertedImages = async (files: FileList | null | undefined) => {
                     file: watermarkResult.file,
                     tmpSrc: URL.createObjectURL(watermarkResult.file),
                     nsfw,
-                    nsfwScore
+                    nsfwScore,
+                    relativePath: entry.relativePath
                 }
             ]
         } catch (e) {
@@ -384,14 +394,11 @@ const appendConvertedImages = async (files: FileList | null | undefined) => {
                 ...convertedImages.value,
                 {
                     file,
-                    tmpSrc: URL.createObjectURL(file)
+                    tmpSrc: URL.createObjectURL(file),
+                    relativePath: entry.relativePath
                 }
             ]
         }
-    }
-    // Reset input to allow selecting the same file again
-    if (input.value) {
-        input.value.value = ''
     }
     loading.value = false
 }
@@ -404,6 +411,7 @@ const removeImage = (tmpSrc: string) => {
             const originalFile = originalFiles.value[index]
             originalTotalSize.value = Math.max(0, originalTotalSize.value - originalFile.size)
             originalFiles.value = originalFiles.value.filter((_, i) => i !== index)
+            originalFilePaths.value = originalFilePaths.value.filter((_, i) => i !== index)
         }
     }
     convertedImages.value = convertedImages.value.filter((item) => item.tmpSrc !== tmpSrc)
@@ -433,6 +441,8 @@ const uploadImages = () => {
     }
     for (let item of convertedImages.value) {
         formData.append('files', item.file)
+        // 与 files 一一对应的相对路径，服务端据此自动创建目录（无则传空串占位）
+        formData.append('relativePaths', item.relativePath || '')
         formData.append('nsfw', item.nsfw ? 'true' : 'false')
         if (item.nsfwScore) {
             formData.append('nsfwScore', item.nsfwScore.toString())
@@ -448,6 +458,8 @@ const uploadImages = () => {
             })
             convertedImages.value = []
             imgResultList.value = res
+            // 上传可能自动新建了目录，刷新储存目录建议
+            fetchDirectories()
             // console.log(res)
             // router.push('/')
         })

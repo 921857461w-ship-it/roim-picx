@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import type { D1Database } from '@cloudflare/workers-types'
 import { Ok, Fail, Folder } from '../type'
 import type { User } from '../type'
 import { auth, type AppEnv } from '../middleware/auth'
@@ -6,17 +7,64 @@ import { getProviderByType } from '../storage'
 
 const folderRoutes = new Hono<AppEnv>()
 
-// 创建目录
+// 目录名合法字符：字母、数字、下划线、连字符和中文
+const FOLDER_NAME_REGX = /^[A-Za-z0-9_-\u4e00-\u9fa5]+$/
+
+/**
+ * 将目录路径（含各级祖先目录）写入 folders 表，保证目录导航能展示空目录。
+ * path 形如 'a/b/c/'，会同时插入 'a/'、'a/b/'、'a/b/c/'。
+ */
+export async function ensureFolderRecords(db: D1Database, userLogin: string, path: string): Promise<void> {
+    if (!path || path === '/') return
+    const normalized = path.endsWith('/') ? path : path + '/'
+    const segments = normalized.split('/').filter(Boolean)
+    let current = ''
+    for (const seg of segments) {
+        current += seg + '/'
+        await db.prepare('INSERT OR IGNORE INTO folders (path, user_login) VALUES (?, ?)')
+            .bind(current, userLogin).run()
+    }
+}
+
+// 创建目录（支持在指定父目录下创建，同步写入 D1 以便目录导航实时展示）
 folderRoutes.post("/folder", auth, async (c) => {
+    const user = c.get('user') as User | undefined
+    const isAdminToken = c.get('isAdminToken') || false
+    if (!user && !isAdminToken) {
+        return c.json(Fail('未授权'))
+    }
+    const userLogin = user?.login || 'admin'
+
     try {
         const data = await c.req.json<Folder>()
         // Allow letters, numbers, underscores, hyphens and Chinese
-        const regx = /^[A-Za-z0-9_-\u4e00-\u9fa5]+$/
-        if (!data.name || !regx.test(data.name)) {
+        if (!data.name || !FOLDER_NAME_REGX.test(data.name)) {
             return c.json(Fail("Folder name error: only letters, numbers, underscores, hyphens and Chinese allowed"))
         }
-        await c.env.PICX.put(data.name + '/', null)
-        return c.json(Ok("Success"))
+
+        // 校验父目录路径
+        let parent = (data.parent || '').replace(/^\/+/, '')
+        if (parent) {
+            if (!parent.endsWith('/')) parent += '/'
+            const segments = parent.split('/').filter(Boolean)
+            if (segments.length === 0 || !segments.every(seg => FOLDER_NAME_REGX.test(seg))) {
+                return c.json(Fail("Invalid parent folder path"))
+            }
+            parent = segments.join('/') + '/'
+        }
+
+        const fullPath = parent + data.name + '/'
+        await c.env.PICX.put(fullPath, null)
+
+        // 同步写入 D1（含祖先目录），保证前端刷新后立即可见；
+        // 若 folders 表尚未迁移，则降级为仅 R2 占位，不影响创建。
+        try {
+            await ensureFolderRecords(c.env.DB, userLogin, fullPath)
+        } catch (e) {
+            console.error('Failed to register folder in DB:', e)
+        }
+
+        return c.json(Ok({ path: fullPath }))
     } catch (e) {
         console.error('Create folder error:', e)
         return c.json(Fail(`Create folder fail: ${(e as Error).message}`))
@@ -96,6 +144,14 @@ folderRoutes.post("/folder/delete", auth, async (c) => {
             await c.env.PICX.delete(folder)
         } catch (e) {
             console.error('[folder-delete] Failed to delete placeholder:', e)
+        }
+
+        // 4.5 清理 folders 表中的目录记录（含子目录）
+        try {
+            await c.env.DB.prepare('DELETE FROM folders WHERE path = ? OR path LIKE ?')
+                .bind(folder, folder + '%').run()
+        } catch (e) {
+            console.error('[folder-delete] Failed to delete folder records:', e)
         }
 
         // 5. 审计日志

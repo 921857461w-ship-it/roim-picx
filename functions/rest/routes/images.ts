@@ -158,14 +158,37 @@ imageRoutes.post('/list', listRateLimit, auth, async (c) => {
             const subFolders = new Set<string>()
             const currentDepth = folder ? folder.split('/').filter(Boolean).length : 0
 
-            for (const row of (folderResult.results || []) as { folder: string }[]) {
-                const parts = row.folder.split('/').filter(Boolean)
+            const collectSubFolders = (raw: string) => {
+                const parts = raw.split('/').filter(Boolean)
                 if (parts.length > currentDepth) {
                     // 获取下一级文件夹
                     const nextFolder = parts.slice(0, currentDepth + 1).join('/') + '/'
                     subFolders.add(nextFolder)
                 }
             }
+
+            for (const row of (folderResult.results || []) as { folder: string }[]) {
+                collectSubFolders(row.folder)
+            }
+
+            // 合并 folders 表中显式创建的目录（含空目录，保证新建目录实时展示）
+            try {
+                const explicitFolderQuery = viewAll
+                    ? 'SELECT path FROM folders WHERE path LIKE ? AND path != ?'
+                    : 'SELECT path FROM folders WHERE user_login = ? AND path LIKE ? AND path != ?'
+                const explicitFolderParams = viewAll
+                    ? [`${folder}%`, folder]
+                    : [user!.login, `${folder}%`, folder]
+                const explicitResult = await c.env.DB.prepare(explicitFolderQuery)
+                    .bind(...explicitFolderParams).all<{ path: string }>()
+                for (const row of explicitResult.results || []) {
+                    collectSubFolders(row.path)
+                }
+            } catch (e) {
+                // folders 表可能尚未迁移，忽略错误保持兼容
+                console.error('Failed to query folders table:', e)
+            }
+
             prefixes = Array.from(subFolders).sort()
         }
 

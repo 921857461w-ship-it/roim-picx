@@ -39,6 +39,8 @@ export interface ImgReq {
 // 文件夹名称
 export interface Folder {
     name: string
+    // 父目录路径（以 / 结尾，空字符串表示根目录）
+    parent?: string
 }
 
 export function NotAuth(): Result {

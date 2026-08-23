@@ -112,6 +112,8 @@ export default {
         maxSize: '最大',
         dropzone: '点击或拖拽图片到这里',
         dropzoneHint: '支持单张或多张图片上传，最大支持 20MB，支持 JPG, PNG, GIF, WEBP, SVG 等格式',
+        uploadFolder: '选择文件夹上传',
+        uploadFolderHint: '选择或拖拽整个文件夹，将按原目录结构自动创建目录',
         pendingInfo: '待上传信息',
         count: '{count} 张',
         originalSize: '原始大小',
